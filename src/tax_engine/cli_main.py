@@ -208,9 +208,7 @@ def load_options_stock_events() -> list[StockEvent]:
 def main() -> None:
     """Run the tax engine with actual data from Excel files."""
     # Parse command-line arguments
-    parser = argparse.ArgumentParser(
-        description="Austrian Tax Engine for E-Trade RSUs and ESPP"
-    )
+    parser = argparse.ArgumentParser(description="Austrian Tax Engine for E-Trade RSUs and ESPP")
     parser.add_argument(
         "--year",
         type=int,
@@ -257,15 +255,14 @@ def main() -> None:
     engine.process_all(events)
 
     # Validate year filter if provided
-    if args.year:
-        if args.year not in engine.yearly_summaries:
-            available_years = sorted(engine.yearly_summaries.keys())
-            print(f"\nError: No data found for year {args.year}")
-            if available_years:
-                print(f"Available years: {', '.join(map(str, available_years))}")
-            else:
-                print("No tax data available (no sales transactions processed)")
-            return
+    if args.year and args.year not in engine.yearly_summaries:
+        available_years = sorted(engine.yearly_summaries.keys())
+        print(f"\nError: No data found for year {args.year}")
+        if available_years:
+            print(f"Available years: {', '.join(map(str, available_years))}")
+        else:
+            print("No tax data available (no sales transactions processed)")
+        return
 
     # Print results
     engine.print_ledger(year=args.year)

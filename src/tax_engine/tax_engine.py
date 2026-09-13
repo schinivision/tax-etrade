@@ -199,7 +199,7 @@ class TaxEngine:
 
     def print_ledger(self, year: int | None = None) -> None:
         """Print the full transaction ledger in a readable format.
-        
+
         Args:
             year: Optional year filter. If provided, only show transactions from that year.
         """
@@ -207,8 +207,7 @@ class TaxEngine:
         events_to_print = self.processed_events
         if year is not None:
             events_to_print = [
-                pe for pe in self.processed_events
-                if pe.event.event_date.year == year
+                pe for pe in self.processed_events if pe.event.event_date.year == year
             ]
 
         print("\n" + "=" * 120)
@@ -242,7 +241,7 @@ class TaxEngine:
 
     def print_tax_summary(self, year: int | None = None) -> None:
         """Print the yearly tax summary.
-        
+
         Args:
             year: Optional year filter. If provided, only show that year's summary.
         """
@@ -287,7 +286,7 @@ class TaxEngine:
 
     def generate_html_content(self, year: int | None = None) -> str:
         """Generate HTML content for the tax report.
-        
+
         Args:
             year: Optional year filter. If provided, only include that year's data.
         """
@@ -381,8 +380,7 @@ class TaxEngine:
         events_to_include = self.processed_events
         if year is not None:
             events_to_include = [
-                pe for pe in self.processed_events
-                if pe.event.event_date.year == year
+                pe for pe in self.processed_events if pe.event.event_date.year == year
             ]
 
         html.append("<h2>Detailed Transaction Ledger</h2>")
@@ -426,11 +424,14 @@ class TaxEngine:
         # Filter sell events by year if specified
         if year is not None:
             sell_events = [
-                pe for pe in self.processed_events
+                pe
+                for pe in self.processed_events
                 if pe.event.event_type == EventType.SELL and pe.event.event_date.year == year
             ]
         else:
-            sell_events = [pe for pe in self.processed_events if pe.event.event_type == EventType.SELL]
+            sell_events = [
+                pe for pe in self.processed_events if pe.event.event_type == EventType.SELL
+            ]
         if not sell_events:
             html.append("<p><em>No sales transactions found.</em></p>")
 
@@ -460,7 +461,7 @@ class TaxEngine:
 
     def generate_pdf_report(self, filepath: str, year: int | None = None) -> None:
         """Generate a PDF tax report using Playwright.
-        
+
         Args:
             filepath: Path where the PDF should be saved.
             year: Optional year filter. If provided, only include that year's data.
