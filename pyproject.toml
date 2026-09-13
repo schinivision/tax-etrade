@@ -73,8 +73,9 @@ ignore = [
 known-first-party = ["tax_engine"]
 
 [tool.mypy]
-# Match the lowest supported interpreter so 3.11+-only syntax is caught.
-python_version = "3.10"
+# python_version is intentionally unset: mypy then targets the interpreter it
+# runs under, and CI runs it on every supported version. Pinning it to 3.10
+# makes mypy reject newer third-party stubs that use 3.12-only syntax.
 strict = true
 warn_return_any = true
 warn_unused_ignores = true
