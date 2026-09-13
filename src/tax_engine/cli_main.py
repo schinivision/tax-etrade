@@ -39,10 +39,15 @@ def main() -> int:
     if not events:
         print(f"Error: no transactions found under {args.input_dir}/")
         print("Expected at least one of:")
-        print(f"  {args.input_dir / ESPP_FILE}   (ESPP purchases)")
-        print(f"  {args.input_dir / ORDERS_FILE}  (sell orders)")
-        print(f"  {args.input_dir / RSU_DIR}/*.pdf        (RSU confirmations)")
-        print(f"  {args.input_dir / OPTIONS_DIR}/*.pdf    (options confirmations)")
+        expected = [
+            (str(args.input_dir / ESPP_FILE), "ESPP purchases"),
+            (str(args.input_dir / ORDERS_FILE), "sell orders"),
+            (f"{args.input_dir / RSU_DIR}/*.pdf", "RSU confirmations"),
+            (f"{args.input_dir / OPTIONS_DIR}/*.pdf", "options confirmations"),
+        ]
+        width = max(len(path) for path, _ in expected)
+        for path, description in expected:
+            print(f"  {path:<{width}}  ({description})")
         print("\nRun `tax-download` to fetch them, or `tax-demo` to see sample output.")
         return EXIT_ERROR
 
