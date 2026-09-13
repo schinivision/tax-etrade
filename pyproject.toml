@@ -103,3 +103,5 @@ disable_error_code = ["arg-type", "union-attr", "type-arg"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-v --tb=short"
+# Tests must never reach the ECB API; an on-demand FX fetch is a test bug.
+filterwarnings = ["error::tax_engine.models.LazyFxRateWarning"]
