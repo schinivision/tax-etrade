@@ -16,10 +16,24 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# 2. Create Virtual Environment if missing
-if [ ! -d ".venv" ]; then
+# Define the base directory of the script
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+PYTHON_BIN="$BASE_DIR/.venv/bin/python3"
+PLAYWRIGHT_BIN="$BASE_DIR/.venv/bin/playwright"
+
+# 2. Create or repair the virtual environment
+# Checking the executable, rather than only the directory, handles copied or
+# partially-created environments whose interpreter symlink is broken.
+if [ ! -x "$PYTHON_BIN" ]; then
+    if [ -d "$BASE_DIR/.venv" ]; then
+        echo "Removing incomplete virtual environment (.venv)..."
+        rm -rf "$BASE_DIR/.venv"
+    fi
+
     echo "Creating Python virtual environment (.venv)..."
-    python3 -m venv .venv
+    # Use a copied interpreter because symlinks can become invalid when the
+    # project directory is copied or mounted in a different filesystem.
+    python3 -m venv --copies "$BASE_DIR/.venv"
     if [ $? -ne 0 ]; then
         echo "Error creating virtual environment."
         read -p "Press Enter to exit..."
@@ -27,17 +41,13 @@ if [ ! -d ".venv" ]; then
     fi
 fi
 
-# Define paths to venv executables
-PYTHON_BIN=".venv/bin/python3"
-PLAYWRIGHT_BIN=".venv/bin/playwright"
-
 # 3. Install Dependencies (using venv python directly)
 echo "Checking/Installing dependencies..."
 "$PYTHON_BIN" -m pip install --upgrade pip setuptools wheel
 "$PYTHON_BIN" -m pip install -e .
 if [ $? -ne 0 ]; then
     echo "Error installing dependencies."
-    read -p "Press Enter to exit..."
+    #read -p "Press Enter to exit..."
     exit 1
 fi
 
@@ -46,7 +56,7 @@ echo "Checking Playwright browsers..."
 "$PLAYWRIGHT_BIN" install chromium
 if [ $? -ne 0 ]; then
     echo "Error installing Playwright browsers."
-    read -p "Press Enter to exit..."
+    #read -p "Press Enter to exit..."
     exit 1
 fi
 
@@ -64,39 +74,39 @@ while true; do
     echo "=========================================="
     read -p "Select an option (1-5): " choice
 
-    case $choice in
+    case "$choice" in
         1)
             echo "------------------------------------------"
             echo "Running Login..."
             echo "A browser window will open. Please log in."
             echo "------------------------------------------"
-            .venv/bin/tax-login
+            "$BASE_DIR/.venv/bin/tax-login"
             echo ""
-            read -p "Press Enter to return to menu..."
+            #read -p "Press Enter to return to menu..."
             ;;
         2)
             echo "------------------------------------------"
             echo "Downloading Data..."
             echo "------------------------------------------"
-            .venv/bin/tax-download
+            "$BASE_DIR/.venv/bin/tax-download"
             echo ""
-            read -p "Press Enter to return to menu..."
+            #read -p "Press Enter to return to menu..."
             ;;
         3)
             echo "------------------------------------------"
             echo "Calculating Tax..."
             echo "------------------------------------------"
-            .venv/bin/tax-engine
+            "$BASE_DIR/.venv/bin/tax-engine"
             echo ""
-            read -p "Press Enter to return to menu..."
+            #read -p "Press Enter to return to menu..."
             ;;
         4)
             echo "------------------------------------------"
             echo "Running Demo..."
             echo "------------------------------------------"
-            .venv/bin/tax-demo
+            "$BASE_DIR/.venv/bin/tax-demo"
             echo ""
-            read -p "Press Enter to return to menu..."
+            #read -p "Press Enter to return to menu..."
             ;;
         5)
             echo "Exiting..."
@@ -104,7 +114,7 @@ while true; do
             ;;
         *)
             echo "Invalid option."
-            read -p "Press Enter to continue..."
+            #read -p "Press Enter to continue..."
             ;;
     esac
 done
