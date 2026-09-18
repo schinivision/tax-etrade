@@ -54,6 +54,7 @@ if %errorlevel% neq 0 (
 
 REM 4. Install Playwright Browsers
 echo Checking Playwright browsers...
+set "PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=120000"
 "%PLAYWRIGHT_BIN%" install chromium
 if %errorlevel% neq 0 (
     echo Error installing Playwright browsers.
