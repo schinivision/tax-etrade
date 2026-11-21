@@ -1,5 +1,5 @@
 """
-Tests for load_orders_from_excel() in cli_main.py.
+Tests for load_orders_from_excel() in loaders.py.
 
 Key behaviour under test:
 - Uses Execution Date (actual trade date) when present
@@ -7,51 +7,31 @@ Key behaviour under test:
 - Falls back to Order Date when Execution Date cell is NaN/empty
 - Skips cancelled orders (Sold Qty. == "--")
 - Skips zero-quantity rows
+- Raises InputDataError for sales with an unreadable date, quantity or price,
+  listing every bad row, rather than silently dropping them
 - Skips Stock Options rows (handled separately via options PDFs)
+- Returns an empty list when the file is missing
 """
 
 from datetime import date
 from decimal import Decimal
-from io import BytesIO
 from pathlib import Path
-from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
-from tax_engine.cli_main import load_orders_from_excel
+from tax_engine.loaders import InputDataError, load_orders_from_excel
 from tax_engine.models import EventType
 
 
-def _make_excel(rows: list[dict]) -> bytes:
-    """Serialise a list of dicts to an in-memory xlsx file."""
-    buf = BytesIO()
-    pd.DataFrame(rows).to_excel(buf, index=False)
-    return buf.getvalue()
-
-
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 def orders_file(tmp_path: Path) -> Path:
-    orders_dir = tmp_path / "input" / "orders"
-    orders_dir.mkdir(parents=True)
-    return orders_dir / "orders.xlsx"
+    return tmp_path / "orders.xlsx"
 
 
 def _load(orders_file: Path, rows: list[dict]) -> list:  # type: ignore[type-arg]
-    """Write rows to orders_file, patch away filesystem/excel access, run loader."""
-    orders_file.write_bytes(_make_excel(rows))
-    df = pd.read_excel(orders_file)
-    with (
-        patch("tax_engine.cli_main.pd.read_excel", return_value=df),
-        patch("tax_engine.cli_main.Path") as mock_path,
-    ):
-        mock_path.return_value.exists.return_value = True
-        return load_orders_from_excel()
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+    pd.DataFrame(rows).to_excel(orders_file, index=False)
+    return load_orders_from_excel(orders_file)
 
 
 def _base_row(**overrides: object) -> dict:  # type: ignore[type-arg]
@@ -62,11 +42,6 @@ def _base_row(**overrides: object) -> dict:  # type: ignore[type-arg]
         "Benefit Type": "Restricted Stock",
         **overrides,
     }
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 class TestExecutionDatePreference:
@@ -97,6 +72,18 @@ class TestExecutionDatePreference:
         assert len(events) == 1
         assert events[0].event_date == date(2023, 11, 9)
 
+    def test_iso_date_format_accepted(self, orders_file: Path) -> None:
+        events = _load(orders_file, [_base_row(**{"Order Date": "2023-11-09"})])
+        assert events[0].event_date == date(2023, 11, 9)
+
+    def test_unparseable_date_raises(self, orders_file: Path) -> None:
+        with pytest.raises(InputDataError, match=r"row 2: unreadable date 'next tuesday'"):
+            _load(orders_file, [_base_row(**{"Order Date": "next tuesday"}), _base_row()])
+
+    def test_unparseable_date_on_cancelled_order_is_skipped(self, orders_file: Path) -> None:
+        events = _load(orders_file, [_base_row(**{"Order Date": "--", "Sold Qty.": "--"})])
+        assert events == []
+
 
 class TestRowFiltering:
     def test_skips_cancelled_orders(self, orders_file: Path) -> None:
@@ -114,6 +101,39 @@ class TestRowFiltering:
         )
         assert events == []
 
+    @pytest.mark.parametrize("bad_price", ["--", "", None, "N/A"])
+    def test_sale_without_execution_price_raises(
+        self, orders_file: Path, bad_price: object
+    ) -> None:
+        """Dropping a real sale would understate the gain, so it must not be skipped."""
+        with pytest.raises(InputDataError, match=r"row 2: 86 shares sold but no execution price"):
+            _load(orders_file, [_base_row(**{"Execution Price": bad_price}), _base_row()])
+
+    def test_unparseable_quantity_raises(self, orders_file: Path) -> None:
+        with pytest.raises(InputDataError, match=r"row 2: unreadable Sold Qty\. 'lots'"):
+            _load(orders_file, [_base_row(**{"Sold Qty.": "lots"})])
+
+    def test_error_lists_every_bad_row(self, orders_file: Path) -> None:
+        rows = [
+            _base_row(**{"Execution Price": "--"}),
+            _base_row(),
+            _base_row(**{"Execution Price": ""}),
+        ]
+        with pytest.raises(InputDataError) as exc_info:
+            _load(orders_file, rows)
+        assert "row 2:" in str(exc_info.value)
+        assert "row 4:" in str(exc_info.value)
+        assert "row 3:" not in str(exc_info.value)
+
+    def test_cancelled_order_without_price_is_skipped(self, orders_file: Path) -> None:
+        events = _load(orders_file, [_base_row(**{"Sold Qty.": "--", "Execution Price": "--"})])
+        assert events == []
+
+    def test_missing_file_returns_empty_list(self, tmp_path: Path, capsys) -> None:
+        events = load_orders_from_excel(tmp_path / "does-not-exist.xlsx")
+        assert events == []
+        assert "No sell orders loaded" in capsys.readouterr().out
+
 
 class TestParsedValues:
     def test_event_type_is_sell(self, orders_file: Path) -> None:
@@ -125,8 +145,8 @@ class TestParsedValues:
         assert events[0].price_usd == Decimal("44.83")
 
     def test_quantity_parsed_correctly(self, orders_file: Path) -> None:
-        events = _load(orders_file, [_base_row(**{"Sold Qty.": "86"})])
-        assert events[0].shares == Decimal("86")
+        events = _load(orders_file, [_base_row(**{"Sold Qty.": "1,086"})])
+        assert events[0].shares == Decimal("1086")
 
     def test_multiple_rows_all_loaded(self, orders_file: Path) -> None:
         rows = [
